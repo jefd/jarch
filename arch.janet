@@ -70,6 +70,33 @@
     (exec-query db-path q)))
 
 
+(defn create-freq-table [db-path table-name]
+  (let [q (string `create table if not exists ` 
+                 table-name 
+                 `(timestamp text not null,
+                   additions integer not null,
+                   deletions integer not null);`)]
+    
+    (exec-query db-path q)))
+
+
+(defn create-commit-table [db-path table-name]
+  (let [q (string `create table if not exists ` 
+                 table-name 
+                 `(timestamp text not null,
+                   commits integer not null);`)]
+    
+    (exec-query db-path q)))
+
+
+(defn create-fork-table [db-path table-name]
+  (let [q (string `create table if not exists ` 
+                 table-name 
+                 `(fork_count integer not null);`)]
+    
+    (exec-query db-path q)))
+
+
 (defn prune-list [lst latest]
   (if (not latest)
     lst
@@ -87,11 +114,16 @@
             {:timestamp "2023-01-03"}
             ])
 
-  #(pp (get-latest tbl)))
-  #(pp (prune-list lst latest)))
-  #(pp (get-table-name (repos 0) "views")))
-  (pp (create-repo-table db-path)))
-  #(pp (create-metric-table db-path "testtable")))
+  #(pp (get-latest tbl))
+  #(pp (prune-list lst latest))
+  #(pp (get-table-name (repos 0) "views"))
+  (pp (create-repo-table db-path))
+  (pp (create-metric-table db-path "metrictable"))
+  (pp (create-freq-table db-path "freqtable"))
+  (pp (create-commit-table db-path "committable"))
+  (pp (create-fork-table db-path "forktable"))
+  
+  )
 
 
 
