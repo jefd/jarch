@@ -148,6 +148,28 @@
 
       (sql/close db))))
 
+(defn insert-or-update-forks [db-path table-name fork-count]
+  (def insert-sql (string  "insert or ignore into forks values (:fork_count);"))
+  (def update-sql (string "update forks set fork_count = :fork_count;" ))
+
+  (def db (sql/open db-path))
+  #(sql/eval db insert-sql {:fork_count fork-count})
+  #(sql/eval db update-sql {:fork_count fork-count})
+
+  (def exists (sql/eval db "select count(*) from forks;"))
+  (def row (exists 0))
+  (def key ((keys row) 0))
+  (def cnt (row key))
+  (print cnt)
+  (def sql (if (= 0 cnt) insert-sql update-sql))
+  (print sql)
+
+
+
+  (sql/close db)
+
+  )
+
 
 ```
 def insert_or_update_forks(con, table_name, fork_count):
@@ -207,6 +229,8 @@ def insert_or_update_forks(con, table_name, fork_count):
   (insert-metrics db-path "views" lst2)
   (insert-commits db-path "commits" lst3)
   (insert-frequency db-path "frequency" lst4)
+  #(insert-or-update-forks db-path "forks" 5)
+  (insert-or-update-forks db-path "forks" 100)
   
   )
 
