@@ -1,6 +1,7 @@
 (import ./tk)
 (import sqlite3 :as sql)
 (import json)
+(import http)
 
 (def db-path "./gh2.db")
 (def token tk/gh-token)
@@ -149,42 +150,61 @@
       (sql/close db))))
 
 (defn insert-or-update-forks [db-path table-name fork-count]
-  (def insert-sql (string  "insert or ignore into forks values (:fork_count);"))
-  (def update-sql (string "update forks set fork_count = :fork_count;" ))
 
-  (def db (sql/open db-path))
-  #(sql/eval db insert-sql {:fork_count fork-count})
-  #(sql/eval db update-sql {:fork_count fork-count})
+  (let [db (sql/open db-path)
+        insert-query (string  "insert or ignore into forks values (:fork_count);")
+        update-query (string "update forks set fork_count = :fork_count;" )
+        rows (sql/eval db "select count(*) from forks;")
+        row (rows 0)
+        key ((keys row) 0)
+        cnt (row key)
+        query (if (= 0 cnt) insert-query update-query)]
 
-  (def exists (sql/eval db "select count(*) from forks;"))
-  (def row (exists 0))
-  (def key ((keys row) 0))
-  (def cnt (row key))
-  (print cnt)
-  (def sql (if (= 0 cnt) insert-sql update-sql))
-  (print sql)
+    (sql/eval db query {:fork_count fork-count})
+    (sql/close db)))
+
+(defn get-url [repo metric]
+  (let [owner (repo :owner)
+        repo-name (repo :name)
+        path (metrics metric)]
+
+    (string "https://api.github.com/repos/" owner "/" repo-name path)))
+    #"http://jsonplaceholder.typicode.com/users"))
+
+(defn get-headers [repo]
+  (let [token (repo :token)]
+
+    {:Accept "application/vnd.github.v3+json"
+     :User-Agent "epic"
+     :Authorization (string "token " token)
+    }
+
+    ))
 
 
-
-  (sql/close db)
-
-  )
+(defn get-views [repo]
+  (let [url (get-url repo :views)
+        headers (get-headers repo)
+       ]
+    
+    #(def resp (http/request "GET" "http://example.com"))
+    (def resp (http/get url :headers headers))
+    #(print "url: " url)
+    #(pp  headers)
+    #(pp (json/decode (resp :body)))
+    #(print (resp :status))
+    (if (= (resp :status) 200)
+      (json/decode (resp :body)))))
 
 
 ```
-def insert_or_update_forks(con, table_name, fork_count):
-    insert_sql = f'''insert or ignore into "{table_name}" (fork_count) values (?);''' 
-    update_sql = f'''update "{table_name}" set fork_count = ?;''' 
-    sql = insert_sql
-
-    cursor = con.cursor()
-    cursor.execute(f'select count(*) from "{table_name}";')
-    exists = cursor.fetchone()[0]
-    if exists:
-        sql = update_sql
-
-    cursor.execute(sql, (fork_count,))
-    cursor.close()
+def get_views(repo):
+    url = get_url(repo, 'views')
+    headers = get_headers(repo)
+    #r = requests.get(url, headers=headers)
+    r = mget(url, headers)
+    if r.status_code == 200:
+        return json.loads(r.content)
 ```
     
 
@@ -220,19 +240,29 @@ def insert_or_update_forks(con, table_name, fork_count):
   #(pp (get-latest tbl))
   #(pp (prune-list lst latest))
   #(pp (get-table-name (repos 0) "views"))
-  (pp (create-repo-table db-path))
-  (pp (create-metric-table db-path "views"))
-  (pp (create-freq-table db-path "frequency"))
-  (pp (create-commit-table db-path "commits"))
-  (pp (create-fork-table db-path "forks"))
+  #(pp (create-repo-table db-path))
+  #(pp (create-metric-table db-path "views"))
+  #(pp (create-freq-table db-path "frequency"))
+  #(pp (create-commit-table db-path "commits"))
+  #(pp (create-fork-table db-path "forks"))
 
-  (insert-metrics db-path "views" lst2)
-  (insert-commits db-path "commits" lst3)
-  (insert-frequency db-path "frequency" lst4)
+  #(insert-metrics db-path "views" lst2)
+  #(insert-commits db-path "commits" lst3)
+  #(insert-frequency db-path "frequency" lst4)
   #(insert-or-update-forks db-path "forks" 5)
-  (insert-or-update-forks db-path "forks" 100)
+  #(insert-or-update-forks db-path "forks" 300)
+  #(print (get-url (repos 0) :views))
+  #(pp (get-headers (repos 0)))
+  #(pp (get-views (repos 0)))
+  (def v (get-views (repos 0)))
+  (print "count: " (v "count"))
   
   )
+
+
+                                
+  
+  
 
 
 
