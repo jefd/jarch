@@ -6,6 +6,9 @@
 (def db-path "./gh2.db")
 (def token tk/gh-token)
 
+(def sleep-time 5)
+(def max-tries 20)
+
 (def repos  [
         {:owner "ufs-community" :name "ufs-weather-model" :token token }
         {:owner "ufs-community" :name "ufs-srweather-app" :token token }
@@ -23,6 +26,30 @@
               :forks "/forks?per_page=100&page=1"
              })
 
+
+(defn mget [url headers]
+  
+  (defn mget-helper [tries]
+    (print "Requesting " url)
+    (def r (http/get url :headers headers))
+    (cond
+      (= (r :status) 200) 
+      (do 
+        (print "Received response! Tries = " tries)
+        r)
+      (>= tries max-tries) 
+      (do 
+        (print "Exceeded maximum tries of " max-tries)
+        nil)
+      (do
+        (print "Status code = " (r :status))
+        (print "Tries = " tries " out of " max-tries)
+        (print "Going to sleep for " sleep-time " seconds...")
+        (os/sleep sleep-time)
+        (mget-helper (+ tries 1)))))
+
+  (mget-helper 1))
+  
 
 (defn get-table-name [repo metric]
   (let [owner (repo :owner)
@@ -103,14 +130,14 @@
   (if (not lst)
     nil
     (do
-      (print "inserting metrics into " table-name)
+      (print "Inserting metrics into " table-name)
 
       (def insert-query (string  "insert into " table-name " values (:timestamp, :count, :uniques);"))
 
       (def db (sql/open db-path))
 
       (each dct lst
-        (print "inserting " (json/encode dct))
+        (print "Inserting " (json/encode dct))
         (sql/eval db insert-query dct))
 
       (sql/close db))))
@@ -120,14 +147,14 @@
   (if (not lst)
     nil
     (do
-      (print "inserting metrics into " table-name)
+      (print "Inserting metrics into " table-name)
 
       (def insert-query (string  "insert into " table-name " values (:timestamp, :commits);"))
 
       (def db (sql/open db-path))
 
       (each dct lst
-        (print "inserting " (json/encode dct))
+        (print "Inserting " (json/encode dct))
         (sql/eval db insert-query dct))
 
       (sql/close db))))
@@ -137,14 +164,14 @@
   (if (not lst)
     nil
     (do
-      (print "inserting metrics into " table-name)
+      (print "Inserting metrics into " table-name)
 
       (def insert-query (string  "insert into " table-name " values (:timestamp, :additions, :deletions);"))
 
       (def db (sql/open db-path))
 
       (each dct lst
-        (print "inserting " (json/encode dct))
+        (print "Inserting " (json/encode dct))
         (sql/eval db insert-query dct))
 
       (sql/close db))))
@@ -187,27 +214,90 @@
         headers (get-headers repo)
        ]
     
-    #(def resp (http/request "GET" "http://example.com"))
-    (def resp (http/get url :headers headers))
-    #(print "url: " url)
-    #(pp  headers)
-    #(pp (json/decode (resp :body)))
-    #(print (resp :status))
-    (if (= (resp :status) 200)
-      (json/decode (resp :body)))))
+    (def r (mget url headers))
+
+    (if r 
+      (json/decode (r :body)))))
 
 
-```
-def get_views(repo):
-    url = get_url(repo, 'views')
-    headers = get_headers(repo)
-    #r = requests.get(url, headers=headers)
-    r = mget(url, headers)
-    if r.status_code == 200:
-        return json.loads(r.content)
-```
+(defn get-clones [repo]
+  (let [url (get-url repo :clones)
+        headers (get-headers repo)
+       ]
     
+    (def r (mget url headers))
 
+    (if r 
+      (json/decode (r :body)))))
+
+
+(defn get-metrics [repo metric]
+  (let [url (get-url repo metric)
+        headers (get-headers repo)
+       ]
+    
+    (print "Getting metrics from " url)
+    (def r (mget url headers))
+
+    (if r 
+        ((json/decode (r :body)) (string metric)))))
+
+
+(defn to-double-digit-string [digit]
+  (string/slice (string "0" digit) -3))
+
+
+(defn get-date-time-string [time]
+  (let [date (os/date time)
+        year (get date :year)
+        #month0 (to-double-digit-string (get date :month))
+        month (to-double-digit-string (+ 1 (get date :month)))
+        #day0 (to-double-digit-string (get date :month-day))
+        day (to-double-digit-string (+ 1 (get date :month-day)))
+        hours (to-double-digit-string (get date :hours))
+        minutes (to-double-digit-string (get date :minutes))
+        seconds (to-double-digit-string (get date :seconds))]
+    (string year "-" month "-" day "T" hours ":" minutes ":" seconds "Z")))
+
+(def to-date get-date-time-string)
+
+
+
+(defn get-frequency [repo]
+  (defn f [l]
+    {:timestamp (to-date (l 0)) :additions (l 1) :deletions (l 2)})
+
+  (let [url (get-url repo :frequency)
+        headers (get-headers repo)
+       ]
+    
+    (def r (mget url headers))
+
+    (if r 
+      (let [lst (json/decode (r :body))]
+        # return list of structs
+        (map f lst)))))
+        
+        
+        
+        
+
+        
+```
+def to_date(timestamp):
+    return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
+```
+
+```
+def get_frequency(repo, metric):
+    url = get_url(repo, metric)
+    headers = get_headers(repo)
+
+    r = mget(url, headers, n=20)
+    if r.status_code == 200:
+        lst = json.loads(r.content)
+        return [{'timestamp': to_date(l[0]), 'additions': l[1], 'deletions': l[2]} for l in lst]
+```
 
             
 (defn main [&]
@@ -254,8 +344,14 @@ def get_views(repo):
   #(print (get-url (repos 0) :views))
   #(pp (get-headers (repos 0)))
   #(pp (get-views (repos 0)))
-  (def v (get-views (repos 0)))
-  (print "count: " (v "count"))
+  #(def c (get-clones (repos 0)))
+  #(pp c)
+  #(print "count: " (c "count"))
+  #(def m (get-metrics (repos 0) :views))
+  #(pp m)
+  #(def f (get-frequency (repos 0)))
+  #(each elt f
+  #  (pp elt))
   
   )
 
