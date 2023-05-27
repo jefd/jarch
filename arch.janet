@@ -264,9 +264,6 @@
 
 
 (defn get-frequency [repo]
-  (defn f [l]
-    {:timestamp (to-date (l 0)) :additions (l 1) :deletions (l 2)})
-
   (let [url (get-url repo :frequency)
         headers (get-headers repo)
        ]
@@ -276,28 +273,10 @@
     (if r 
       (let [lst (json/decode (r :body))]
         # return list of structs
-        (map f lst)))))
-        
-        
-        
-        
-
-        
-```
-def to_date(timestamp):
-    return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%dT%H:%M:%SZ')
-```
-
-```
-def get_frequency(repo, metric):
-    url = get_url(repo, metric)
-    headers = get_headers(repo)
-
-    r = mget(url, headers, n=20)
-    if r.status_code == 200:
-        lst = json.loads(r.content)
-        return [{'timestamp': to_date(l[0]), 'additions': l[1], 'deletions': l[2]} for l in lst]
-```
+        (map 
+          (fn [l]
+            {:timestamp (to-date (l 0)) :additions (l 1) :deletions (l 2)})
+          lst)))))
 
             
 (defn main [&]
@@ -349,9 +328,9 @@ def get_frequency(repo, metric):
   #(print "count: " (c "count"))
   #(def m (get-metrics (repos 0) :views))
   #(pp m)
-  #(def f (get-frequency (repos 0)))
-  #(each elt f
-  #  (pp elt))
+  (def f (get-frequency (repos 0)))
+  (each elt f
+    (pp elt))
   
   )
 
