@@ -49,28 +49,27 @@
         (mget-helper (+ tries 1)))))
 
   (mget-helper 1))
+
   
-
-(defn get-table-name [repo metric]
-  (let [owner (repo :owner)
-        repo-name (repo :name)]
-
-    (string owner "/" repo-name "/" metric)))
-
-
-(defn exec-query [db-path query]
-  (let [db (sql/open db-path)
-        rows (sql/eval db query)]
-    (sql/close db)
-    rows))
-    
-
 (defn get-latest [table-name]
   (let [tbl (string `"` table-name `"`)
         query (string "select timestamp from " tbl " order by timestamp desc limit 1;")
         rows (exec-query db-path query)]
 
     (if (>= (length rows) 0) (rows 0) nil))) 
+
+
+(defn prune-list [lst latest]
+  (if (not latest)
+    lst
+    (filter (fn [st] (> (st :timestamp) latest))  lst)))
+
+
+(defn get-table-name [repo metric]
+  (let [owner (repo :owner)
+        repo-name (repo :name)]
+
+    (string owner "/" repo-name "/" metric)))
 
 
 (defn create-repo-table [db-path]
@@ -103,6 +102,13 @@
     (exec-query db-path q)))
 
 
+(defn exec-query [db-path query]
+  (let [db (sql/open db-path)
+        rows (sql/eval db query)]
+    (sql/close db)
+    rows))
+    
+
 (defn create-commit-table [db-path table-name]
   (let [q (string `create table if not exists ` 
                  table-name 
@@ -118,12 +124,6 @@
                  `(fork_count integer not null);`)]
     
     (exec-query db-path q)))
-
-
-(defn prune-list [lst latest]
-  (if (not latest)
-    lst
-    (filter (fn [st] (> (st :timestamp) latest))  lst)))
 
 
 (defn insert-metrics [db-path table-name lst]
@@ -241,6 +241,31 @@
 
     (if r 
         ((json/decode (r :body)) (string metric)))))
+
+
+(defn split-strip [delim s]
+  (filter (fn [elt] (not (= elt ""))) 
+          (map string/trim (string/split delim s))))
+
+
+(defn get-links [headers]
+  (def rel-list ["first" "last" "next" "prev"])
+
+  (def m @{})
+  
+  (def link (get headers "Link"))
+
+  (if (not link) (break nil))
+
+  (each rel rel-list
+    (def l (split-strip "," link))
+    (def l2 (map (partial split-strip ";") l))
+
+    (each [url relative] l2
+      (if (string/find rel relative)
+        (put m rel (string/slice url 1 -2)))))
+
+  m)
 
 
 (defn to-double-digit-string [digit]
