@@ -27,6 +27,13 @@
              })
 
 
+(defn exec-query [db-path query]
+  (let [db (sql/open db-path)
+        rows (sql/eval db query)]
+    (sql/close db)
+    rows))
+
+
 (defn mget [url headers]
   
   (defn mget-helper [tries]
@@ -102,11 +109,6 @@
     (exec-query db-path q)))
 
 
-(defn exec-query [db-path query]
-  (let [db (sql/open db-path)
-        rows (sql/eval db query)]
-    (sql/close db)
-    rows))
     
 
 (defn create-commit-table [db-path table-name]
@@ -242,30 +244,119 @@
     (if r 
         ((json/decode (r :body)) (string metric)))))
 
-
+```
 (defn split-strip [delim s]
   (filter (fn [elt] (not (= elt ""))) 
           (map string/trim (string/split delim s))))
+```
+
+# using a fancy threading macro
+(defn split-strip [delim s]
+  (->> s
+      (string/split delim)
+      (map string/trim)
+      (filter (fn [elt] (not (= elt ""))))))
 
 
 (defn get-links [headers]
   (def rel-list ["first" "last" "next" "prev"])
-
   (def m @{})
-  
   (def link (get headers "Link"))
-
   (if (not link) (break nil))
-
   (each rel rel-list
     (def l (split-strip "," link))
     (def l2 (map (partial split-strip ";") l))
-
     (each [url relative] l2
       (if (string/find rel relative)
         (put m rel (string/slice url 1 -2)))))
-
   m)
+
+
+
+
+(defn get-fork-count [repo]
+  (var url (get-url repo :forks))
+  (def headers (get-headers repo))
+
+  (var total 0)
+
+  (while url
+    (def r (mget url headers))
+    (if (= (r :status) 200)
+      (do
+        (def lst (json/decode (r :body)))
+        (each l lst
+          (def count (l "forks_count"))
+          (if (= count 0)
+            (set total (+ total 1))
+            (set total (+ count 1))))
+       
+        (def links (get-links (r :headers)))
+
+        (set url (get links "next")))))
+
+  total)
+
+
+```
+# recursive version
+(defn get-fork-count [repo]
+  (defn get-fork-count-helper [url headers total]
+    (if (not url)
+      total
+      (do
+        (def r (mget url headers))
+        (if (= (r :status) 200)
+          (do
+            (def lst (json/decode (r :body)))
+            (var new-total total)
+            (each l lst
+              (def count (l "forks_count"))
+              (if (= count 0)
+                (set new-total (+ new-total 1))
+                (set new-total (+ count 1))))
+
+            (def links (get-links (r :headers)))
+            (def url (get links "next"))
+
+            (get-fork-count-helper url headers new-total))))))
+
+  (def url (get-url repo :forks))
+  (def headers (get-headers repo))
+
+  (get-fork-count-helper url headers 0)) 
+```
+
+
+
+
+
+```
+def get_fork_count(repo):
+    url = get_url(repo, 'forks')
+    headers = get_headers(repo)
+
+    total = 0
+    while url:
+        #r = requests.get(url, headers=headers)
+        r = mget(url, headers)
+        if r.status_code == 200:
+            lst = json.loads(r.content)
+
+            for l in lst:
+                count = l['forks_count']
+                if count == 0:
+                    total += 1
+                else:
+                    total += (count + 1)
+
+
+            links = get_links(r.headers)
+
+            url = links.get('next')
+
+    return total
+```
 
 
 (defn to-double-digit-string [digit]
@@ -353,9 +444,10 @@
   #(print "count: " (c "count"))
   #(def m (get-metrics (repos 0) :views))
   #(pp m)
-  (def f (get-frequency (repos 0)))
-  (each elt f
-    (pp elt))
+  #(def f (get-frequency (repos 0)))
+  #(each elt f
+  #  (pp elt))
+  (print (get-fork-count (repos 0)))
   
   )
 
