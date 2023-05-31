@@ -332,9 +332,8 @@
         (def links (get-links (r :headers)))
         (set url (get links "next")))))
 
-  (def sorted-keys (sorted (keys commit-dct)))
-  
   (def ret-lst @[])
+
   (each k (sorted (keys commit-dct))
     (array/push ret-lst {"timestamp" k "commits" (get commit-dct k)}))
   
