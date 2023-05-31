@@ -333,54 +333,14 @@
         (set url (get links "next")))))
 
   (def sorted-keys (sorted (keys commit-dct)))
-  (def sorted-dct @{})
-  (each key sorted-keys
-    (put sorted-dct key (get commit-dct key)))
-
+  
   (def ret-lst @[])
-  (eachp [k v] sorted-dct
-    (array/push ret-lst {"timestamp" k "commits" v}))
+  (each k (sorted (keys commit-dct))
+    (array/push ret-lst {"timestamp" k "commits" (get commit-dct k)}))
   
   ret-lst)
-
   
-
-
-
-
-
-
 ```
-def get_commits(repo, metric):
-    url = get_url(repo, metric)
-    headers = get_headers(repo)
-
-    commit_dct = {}
-
-    while url:
-        #print(url)
-        #r = requests.get(url, headers=headers)
-        r = mget(url, headers)
-        if r.status_code == 200:
-            lst = json.loads(r.content)
-            #print(lst); sys.exit()
-
-            for l in lst:
-                date = l['commit']['author']['date'][0:10] + 'T00:00:00Z'
-                if date in commit_dct:
-                    commit_dct[date] += 1
-                else:
-                    commit_dct[date] = 1
-
-            links = get_links(r.headers)
-
-            url = links.get('next')
-
-    # sort dct by key
-    sorted_dct = {key:commit_dct[key] for key in sorted(commit_dct.keys())}
-    return [{'timestamp': k, 'commits': v} for k,v in sorted_dct.items()]
-    #return commit_dct
-    #return sorted_dct
 ```
 
 (defn to-double-digit-string [digit]
@@ -468,7 +428,9 @@ def get_commits(repo, metric):
   #(each elt f
   #  (pp elt))
   #(print (get-fork-count (repos 0)))
-  (pp (get-commits (repos 0)))
+  (def commits (get-commits (repos 0)))
+  (each c commits
+    (pp c))
   
   )
 
