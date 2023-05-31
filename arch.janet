@@ -265,7 +265,7 @@
           (def count (l "forks_count"))
           (if (= count 0)
             (set total (+ total 1))
-            (set total (+ count 1))))
+            (set total (+ total count 1))))
        
         (def links (get-links (r :headers)))
 
