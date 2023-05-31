@@ -240,7 +240,7 @@
 (defn get-links [headers]
   (def rel-list ["first" "last" "next" "prev"])
   (def m @{})
-  (def link (get headers "Link"))
+  (def link (get headers "link"))
   (if (not link) (break nil))
   (each rel rel-list
     (def l (split-strip "," link))
