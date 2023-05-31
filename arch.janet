@@ -16,9 +16,7 @@
         {:owner "ufs-community" :name "regional_workflow" :token token }
 ])
 
-
 # map of metric name to github api path
-
 (def metrics {:views "/traffic/views"
               :clones "/traffic/clones"
               :frequency "/stats/code_frequency"
@@ -26,13 +24,11 @@
               :forks "/forks?per_page=100&page=1"
              })
 
-
 (defn exec-query [db-path query]
   (let [db (sql/open db-path)
         rows (sql/eval db query)]
     (sql/close db)
     rows))
-
 
 (defn mget [url headers]
   
@@ -57,7 +53,6 @@
 
   (mget-helper 1))
 
-  
 (defn get-latest [table-name]
   (let [tbl (string `"` table-name `"`)
         query (string "select timestamp from " tbl " order by timestamp desc limit 1;")
@@ -65,19 +60,16 @@
 
     (if (>= (length rows) 0) (rows 0) nil))) 
 
-
 (defn prune-list [lst latest]
   (if (not latest)
     lst
     (filter (fn [st] (> (st :timestamp) latest))  lst)))
-
 
 (defn get-table-name [repo metric]
   (let [owner (repo :owner)
         repo-name (repo :name)]
 
     (string owner "/" repo-name "/" metric)))
-
 
 (defn create-repo-table [db-path]
   (let [q `create table if not exists repos (
@@ -88,7 +80,6 @@
 
     (exec-query db-path q)))
 
-
 (defn create-metric-table [db-path table-name]
   (let [q (string `create table if not exists ` 
                  table-name 
@@ -97,7 +88,6 @@
                    uniques integer not null);`)]
     
     (exec-query db-path q)))
-
 
 (defn create-freq-table [db-path table-name]
   (let [q (string `create table if not exists ` 
@@ -108,9 +98,6 @@
     
     (exec-query db-path q)))
 
-
-    
-
 (defn create-commit-table [db-path table-name]
   (let [q (string `create table if not exists ` 
                  table-name 
@@ -119,14 +106,12 @@
     
     (exec-query db-path q)))
 
-
 (defn create-fork-table [db-path table-name]
   (let [q (string `create table if not exists ` 
                  table-name 
                  `(fork_count integer not null);`)]
     
     (exec-query db-path q)))
-
 
 (defn insert-metrics [db-path table-name lst]
   (if (not lst)
@@ -144,7 +129,6 @@
 
       (sql/close db))))
 
-
 (defn insert-commits [db-path table-name lst]
   (if (not lst)
     nil
@@ -160,7 +144,6 @@
         (sql/eval db insert-query dct))
 
       (sql/close db))))
-
 
 (defn insert-frequency [db-path table-name lst]
   (if (not lst)
@@ -210,7 +193,6 @@
 
     ))
 
-
 (defn get-views [repo]
   (let [url (get-url repo :views)
         headers (get-headers repo)
@@ -221,7 +203,6 @@
     (if r 
       (json/decode (r :body)))))
 
-
 (defn get-clones [repo]
   (let [url (get-url repo :clones)
         headers (get-headers repo)
@@ -231,7 +212,6 @@
 
     (if r 
       (json/decode (r :body)))))
-
 
 (defn get-metrics [repo metric]
   (let [url (get-url repo metric)
@@ -257,7 +237,6 @@
       (map string/trim)
       (filter (fn [elt] (not (= elt ""))))))
 
-
 (defn get-links [headers]
   (def rel-list ["first" "last" "next" "prev"])
   (def m @{})
@@ -270,9 +249,6 @@
       (if (string/find rel relative)
         (put m rel (string/slice url 1 -2)))))
   m)
-
-
-
 
 (defn get-fork-count [repo]
   (var url (get-url repo :forks))
@@ -296,7 +272,6 @@
         (set url (get links "next")))))
 
   total)
-
 
 ```
 # recursive version
@@ -358,10 +333,8 @@ def get_fork_count(repo):
     return total
 ```
 
-
 (defn to-double-digit-string [digit]
   (string/slice (string "0" digit) -3))
-
 
 (defn get-date-time-string [time]
   (let [date (os/date time)
@@ -376,8 +349,6 @@ def get_fork_count(repo):
     (string year "-" month "-" day "T" hours ":" minutes ":" seconds "Z")))
 
 (def to-date get-date-time-string)
-
-
 
 (defn get-frequency [repo]
   (let [url (get-url repo :frequency)
@@ -394,7 +365,6 @@ def get_fork_count(repo):
             {:timestamp (to-date (l 0)) :additions (l 1) :deletions (l 2)})
           lst)))))
 
-            
 (defn main [&]
   (def tbl (get-table-name (repos 0) "views"))
   (def latest "2023-01-01")
@@ -450,11 +420,5 @@ def get_fork_count(repo):
   (print (get-fork-count (repos 0)))
   
   )
-
-
-                                
-  
-  
-
 
 
