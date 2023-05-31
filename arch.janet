@@ -303,34 +303,84 @@
 ```
 
 
+(defn get-commits [repo]
+  (var url (get-url repo :commits))
+  (def headers (get-headers repo))
+
+  (var commit-dct @{})
+
+  (while url
+    (def r (mget url headers))
+    (if (= (r :status) 200)
+      (do
+        (def lst (json/decode (r :body)))
+        (each l lst
+          #(def date (string/slice (get (get (get l "commit") "author") "date") 0 10))
+          (def date (-> l
+                        (get "commit")
+                        (get "author")
+                        (get "date")
+                        (string/slice 0 10)
+                        (string "T00:00:00Z")))
+
+          (def n (get commit-dct date))
+
+          (if n
+            (put commit-dct date (+ 1 n))
+            (put commit-dct date 1)))
+
+        (def links (get-links (r :headers)))
+        (set url (get links "next")))))
+
+  (def sorted-keys (sorted (keys commit-dct)))
+  (def sorted-dct @{})
+  (each key sorted-keys
+    (put sorted-dct key (get commit-dct key)))
+
+  (def ret-lst @[])
+  (eachp [k v] sorted-dct
+    (array/push ret-lst {"timestamp" k "commits" v}))
+  
+  ret-lst)
+
+  
+
+
+
 
 
 
 ```
-def get_fork_count(repo):
-    url = get_url(repo, 'forks')
+def get_commits(repo, metric):
+    url = get_url(repo, metric)
     headers = get_headers(repo)
 
-    total = 0
+    commit_dct = {}
+
     while url:
+        #print(url)
         #r = requests.get(url, headers=headers)
         r = mget(url, headers)
         if r.status_code == 200:
             lst = json.loads(r.content)
+            #print(lst); sys.exit()
 
             for l in lst:
-                count = l['forks_count']
-                if count == 0:
-                    total += 1
+                date = l['commit']['author']['date'][0:10] + 'T00:00:00Z'
+                if date in commit_dct:
+                    commit_dct[date] += 1
                 else:
-                    total += (count + 1)
-
+                    commit_dct[date] = 1
 
             links = get_links(r.headers)
 
             url = links.get('next')
 
-    return total
+    # sort dct by key
+    sorted_dct = {key:commit_dct[key] for key in sorted(commit_dct.keys())}
+    return [{'timestamp': k, 'commits': v} for k,v in sorted_dct.items()]
+    #return commit_dct
+    #return sorted_dct
 ```
 
 (defn to-double-digit-string [digit]
@@ -417,7 +467,8 @@ def get_fork_count(repo):
   #(def f (get-frequency (repos 0)))
   #(each elt f
   #  (pp elt))
-  (print (get-fork-count (repos 0)))
+  #(print (get-fork-count (repos 0)))
+  (pp (get-commits (repos 0)))
   
   )
 
