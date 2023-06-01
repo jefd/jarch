@@ -24,6 +24,9 @@
               :forks "/forks?per_page=100&page=1"
              })
 
+(defn ok? [r]
+  (= (r :status) 200))
+
 (defn exec-query [db-path query]
   (let [db (sql/open db-path)
         rows (sql/eval db query)]
@@ -250,57 +253,69 @@
         (put m rel (string/slice url 1 -2)))))
   m)
 
-(defn get-fork-count [repo]
-  (var url (get-url repo :forks))
-  (def headers (get-headers repo))
 
+(defn get-fork-count [repo]
+  (defn get-count [lst]
+    (var total 0)
+    (each l lst
+      (let [fork-count (l "forks_count")]
+        (set total (+ total 1 fork-count))))
+    
+    total)
+
+  (def headers (get-headers repo))
+  (var url (get-url repo :forks))
   (var total 0)
 
   (while url
-    (def r (mget url headers))
-    (if (= (r :status) 200)
-      (do
-        (def lst (json/decode (r :body)))
-        (each l lst
-          (def count (l "forks_count"))
-          (if (= count 0)
-            (set total (+ total 1))
-            (set total (+ total count 1))))
-       
-        (def links (get-links (r :headers)))
+    (let [r (mget url headers)]
+      #(if (= (r :status) 200)
+      (if (ok? r)
+        (let [lst (json/decode (r :body))
+              links (get-links (r :headers))]
 
-        (set url (get links "next")))))
+          (set total (+ total (get-count lst)))
+          (set url (get links "next"))))))
 
   total)
 
-```
-# recursive version
-(defn get-fork-count [repo]
-  (defn get-fork-count-helper [url headers total]
+(defn get-fork-count-r [repo]
+
+  (defn rest [tup]
+    (if (empty? tup)
+      nil
+      (slice tup 1)))
+
+  (defn get-total [lst]
+
+    (defn get-total-h [lst tot]
+      (if (empty? lst)
+        tot
+        (let [l (first lst)
+              count (l "forks_count")]
+          (get-total-h (rest lst) (+ tot count 1)))))
+
+    (get-total-h lst 0))
+
+  (defn get-fork-count-h [url headers total]
     (if (not url)
       total
-      (do
-        (def r (mget url headers))
+
+      (let [r (mget url headers)]
         (if (= (r :status) 200)
-          (do
-            (def lst (json/decode (r :body)))
-            (var new-total total)
-            (each l lst
-              (def count (l "forks_count"))
-              (if (= count 0)
-                (set new-total (+ new-total 1))
-                (set new-total (+ count 1))))
-
-            (def links (get-links (r :headers)))
-            (def url (get links "next"))
-
-            (get-fork-count-helper url headers new-total))))))
-
+          (let [lst (json/decode (r :body))
+                links (get-links (r :headers))
+                url (get links "next")]
+            
+            (get-fork-count-h url headers (+ total (get-total lst))))))))
+            
   (def url (get-url repo :forks))
   (def headers (get-headers repo))
 
-  (get-fork-count-helper url headers 0)) 
-```
+  (get-fork-count-h url headers 0)) 
+
+
+
 
 
 (defn get-commits [repo]
@@ -426,10 +441,10 @@
   #(def f (get-frequency (repos 0)))
   #(each elt f
   #  (pp elt))
-  #(print (get-fork-count (repos 0)))
-  (def commits (get-commits (repos 0)))
-  (each c commits
-    (pp c))
+  (print (get-fork-count-r (repos 0)))
+  #(def commits (get-commits (repos 0)))
+  #(each c commits
+  #  (pp c))
   
   )
 
