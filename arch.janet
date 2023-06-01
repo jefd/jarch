@@ -27,6 +27,9 @@
 (defn ok? [r]
   (= (r :status) 200))
 
+(defn qw [name]
+  (string `"` name `"`))
+
 (defn exec-query [db-path query]
   (let [db (sql/open db-path)
         rows (sql/eval db query)]
@@ -39,7 +42,7 @@
     (print "Requesting " url)
     (def r (http/get url :headers headers))
     (cond
-      (= (r :status) 200) 
+      (ok? r) 
       (do 
         (print "Received response! Tries = " tries)
         r)
@@ -85,7 +88,7 @@
 
 (defn create-metric-table [db-path table-name]
   (let [q (string `create table if not exists ` 
-                 table-name 
+                 (qw table-name) 
                  `(timestamp text not null,
                    count integer not null,
                    uniques integer not null);`)]
@@ -94,7 +97,7 @@
 
 (defn create-freq-table [db-path table-name]
   (let [q (string `create table if not exists ` 
-                 table-name 
+                 (qw table-name) 
                  `(timestamp text not null,
                    additions integer not null,
                    deletions integer not null);`)]
@@ -103,7 +106,7 @@
 
 (defn create-commit-table [db-path table-name]
   (let [q (string `create table if not exists ` 
-                 table-name 
+                 (qw table-name) 
                  `(timestamp text not null,
                    commits integer not null);`)]
     
@@ -111,7 +114,7 @@
 
 (defn create-fork-table [db-path table-name]
   (let [q (string `create table if not exists ` 
-                 table-name 
+                 (qw table-name) 
                  `(fork_count integer not null);`)]
     
     (exec-query db-path q)))
@@ -120,9 +123,9 @@
   (if (not lst)
     nil
     (do
-      (print "Inserting metrics into " table-name)
+      (print "Inserting metrics into " (qw table-name))
 
-      (def insert-query (string  "insert into " table-name " values (:timestamp, :count, :uniques);"))
+      (def insert-query (string  "insert into " (qw table-name) " values (:timestamp, :count, :uniques);"))
 
       (def db (sql/open db-path))
 
@@ -136,9 +139,9 @@
   (if (not lst)
     nil
     (do
-      (print "Inserting metrics into " table-name)
+      (print "Inserting metrics into " (qw table-name))
 
-      (def insert-query (string  "insert into " table-name " values (:timestamp, :commits);"))
+      (def insert-query (string  "insert into " (qw table-name) " values (:timestamp, :commits);"))
 
       (def db (sql/open db-path))
 
@@ -152,9 +155,9 @@
   (if (not lst)
     nil
     (do
-      (print "Inserting metrics into " table-name)
+      (print "Inserting metrics into " (qw table-name))
 
-      (def insert-query (string  "insert into " table-name " values (:timestamp, :additions, :deletions);"))
+      (def insert-query (string  "insert into " (qw table-name) " values (:timestamp, :additions, :deletions);"))
 
       (def db (sql/open db-path))
 
@@ -316,8 +319,41 @@
           (set url (get links "next"))))))
 
   (get-sorted-list commit-dct))
-  
+
+(defn update-repo-table [repo metric]
+  (let [owner (repo :owner)
+        name (repo :name)
+        table-name (get-table-name repo metric)
+        select-query (string "select timestamp from " (qw table-name) " order by timestamp limit 1;")
+        insert-query (string "insert into repos values (:owner :name :metric :minDate);")]
+
+    (def db (sql/open db-path))
+
+    (def rows (sql/eval db select-query))
+    (def min-date (rows 0))
+    (sql/eval db insert-query {:owner owner :name name :metric metric :midDate min-date})
+
+    (sql/close db)))
+
+(defn row-exists? [repo metric]
+  (let [owner (repo :owner)
+        name (repo :name)
+        query (string "select minDate from repos where owner=" (qw owner) " and name=" (qw name) " and metric=" (qw metric) ";")
+        rows (exec-query db-path query)
+        ]
+
+    (rows 0)))
+
 ```
+def row_exists(con, repo, metric):
+    cursor = con.cursor()
+    owner = repo['owner']
+    name = repo['name']
+    sql = f'''select minDate from repos where owner="{owner}" and name="{name}" and metric="{metric}";'''
+    cursor.execute(sql)
+    result = cursor.fetchone()
+    cursor.close()
+    return result
 ```
 
 (defn to-double-digit-string [digit]
@@ -340,11 +376,9 @@
 (defn get-frequency [repo]
   (let [url (get-url repo :frequency)
         headers (get-headers repo)
-       ]
+        r (mget url headers)]
     
-    (def r (mget url headers))
-
-    (if r 
+    (if (ok? r) 
       (let [lst (json/decode (r :body))]
         # return list of structs
         (map 
@@ -383,7 +417,7 @@
   #(pp (prune-list lst latest))
   #(pp (get-table-name (repos 0) "views"))
   #(pp (create-repo-table db-path))
-  #(pp (create-metric-table db-path "views"))
+  (pp (create-metric-table db-path "my/views"))
   #(pp (create-freq-table db-path "frequency"))
   #(pp (create-commit-table db-path "commits"))
   #(pp (create-fork-table db-path "forks"))
@@ -405,9 +439,9 @@
   #(each elt f
   #  (pp elt))
   #(print (get-fork-count-r (repos 0)))
-  (def commits (get-commits (repos 0)))
-  (each c commits
-    (pp c))
+  #(def commits (get-commits (repos 0)))
+  #(each c commits
+  #  (pp c))
   
   )
 
