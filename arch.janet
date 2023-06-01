@@ -280,40 +280,42 @@
   total)
 
 (defn get-commits [repo]
-  (var url (get-url repo :commits))
-  (def headers (get-headers repo))
 
+  (defn add-commits [lst commit-dct]
+    (each l lst
+      (let [date (-> l
+                     (get "commit")
+                     (get "author")
+                     (get "date")
+                     (string/slice 0 10)
+                     (string "T00:00:00Z"))
+            n (get commit-dct date)]
+
+        (if n
+          (put commit-dct date (+ 1 n))
+          (put commit-dct date 1)))))
+
+  (defn get-sorted-list [dct]
+    (let [ret-list @[]]
+      (each k (sorted (keys dct))
+        (array/push ret-list {"timestamp" k "commits" (get dct k)}))
+
+      ret-list))
+
+  (def headers (get-headers repo))
+  (var url (get-url repo :commits))
   (var commit-dct @{})
 
   (while url
-    (def r (mget url headers))
-    (if (= (r :status) 200)
-      (do
-        (def lst (json/decode (r :body)))
-        (each l lst
-          #(def date (string/slice (get (get (get l "commit") "author") "date") 0 10))
-          (def date (-> l
-                        (get "commit")
-                        (get "author")
-                        (get "date")
-                        (string/slice 0 10)
-                        (string "T00:00:00Z")))
+    (let [r (mget url headers)]
+      (if (ok? r)
+        (let [lst (json/decode (r :body))
+              links (get-links (r :headers))]
 
-          (def n (get commit-dct date))
+          (add-commits lst commit-dct)
+          (set url (get links "next"))))))
 
-          (if n
-            (put commit-dct date (+ 1 n))
-            (put commit-dct date 1)))
-
-        (def links (get-links (r :headers)))
-        (set url (get links "next")))))
-
-  (def ret-lst @[])
-
-  (each k (sorted (keys commit-dct))
-    (array/push ret-lst {"timestamp" k "commits" (get commit-dct k)}))
-  
-  ret-lst)
+  (get-sorted-list commit-dct))
   
 ```
 ```
@@ -402,10 +404,10 @@
   #(def f (get-frequency (repos 0)))
   #(each elt f
   #  (pp elt))
-  (print (get-fork-count-r (repos 0)))
-  #(def commits (get-commits (repos 0)))
-  #(each c commits
-  #  (pp c))
+  #(print (get-fork-count-r (repos 0)))
+  (def commits (get-commits (repos 0)))
+  (each c commits
+    (pp c))
   
   )
 
