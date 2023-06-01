@@ -279,45 +279,6 @@
 
   total)
 
-(defn get-fork-count-r [repo]
-
-  (defn rest [tup]
-    (if (empty? tup)
-      nil
-      (slice tup 1)))
-
-  (defn get-total [lst]
-
-    (defn get-total-h [lst tot]
-      (if (empty? lst)
-        tot
-        (let [l (first lst)
-              count (l "forks_count")]
-          (get-total-h (rest lst) (+ tot count 1)))))
-
-    (get-total-h lst 0))
-
-  (defn get-fork-count-h [url headers total]
-    (if (not url)
-      total
-
-      (let [r (mget url headers)]
-        (if (= (r :status) 200)
-          (let [lst (json/decode (r :body))
-                links (get-links (r :headers))
-                url (get links "next")]
-            
-            (get-fork-count-h url headers (+ total (get-total lst))))))))
-            
-  (def url (get-url repo :forks))
-  (def headers (get-headers repo))
-
-  (get-fork-count-h url headers 0)) 
-
-
-
-
-
 (defn get-commits [repo]
   (var url (get-url repo :commits))
   (def headers (get-headers repo))
