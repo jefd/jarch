@@ -121,53 +121,25 @@
     
     (exec-query db-path q)))
 
+
+(defn multi-insert [db-path table-name query lst]
+  (with [db (sql/open db-path) (fn [db] (sql/close db))]
+    (each dct lst
+      (print "Inserting into " (qw table-name) ": " (json/encode dct))
+      (sql/eval db query dct))
+    (sql/close db)))
+
 (defn insert-metrics [db-path table-name lst]
-  (if (not lst)
-    nil
-    (do
-      (print "Inserting metrics into " (qw table-name))
-
-      (def insert-query (string  "insert into " (qw table-name) " values (:timestamp, :count, :uniques);"))
-
-      (def db (sql/open db-path))
-
-      (each dct lst
-        (print "Inserting " (json/encode dct))
-        (sql/eval db insert-query dct))
-
-      (sql/close db))))
+  (def query (string  "insert into " (qw table-name) " values (:timestamp, :count, :uniques);"))
+  (multi-insert db-path table-name query lst))
 
 (defn insert-commits [db-path table-name lst]
-  (if (not lst)
-    nil
-    (do
-      (print "Inserting metrics into " (qw table-name))
-
-      (def insert-query (string  "insert into " (qw table-name) " values (:timestamp, :commits);"))
-
-      (def db (sql/open db-path))
-
-      (each dct lst
-        (print "Inserting " (json/encode dct))
-        (sql/eval db insert-query dct))
-
-      (sql/close db))))
+  (def query (string  "insert into " (qw table-name) " values (:timestamp, :commits);"))
+  (multi-insert db-path table-name query lst))
 
 (defn insert-frequency [db-path table-name lst]
-  (if (not lst)
-    nil
-    (do
-      (print "Inserting metrics into " (qw table-name))
-
-      (def insert-query (string  "insert into " (qw table-name) " values (:timestamp, :additions, :deletions);"))
-
-      (def db (sql/open db-path))
-
-      (each dct lst
-        (print "Inserting " (json/encode dct))
-        (sql/eval db insert-query dct))
-
-      (sql/close db))))
+  (def query (string  "insert into " (qw table-name) " values (:timestamp, :additions, :deletions);"))
+  (multi-insert db-path table-name query lst))
 
 (defn insert-or-update-forks [db-path table-name fork-count]
 
@@ -419,7 +391,7 @@ def row_exists(con, repo, metric):
   #(pp (prune-list lst latest))
   #(pp (get-table-name (repos 0) "views"))
   #(pp (create-repo-table db-path))
-  (pp (create-metric-table db-path "my/views"))
+  #(pp (create-metric-table db-path "views"))
   #(pp (create-freq-table db-path "frequency"))
   #(pp (create-commit-table db-path "commits"))
   #(pp (create-fork-table db-path "forks"))
