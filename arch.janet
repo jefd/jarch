@@ -30,9 +30,11 @@
 (defn qw [name]
   (string `"` name `"`))
 
-(defn exec-query [db-path query]
-  (let [db (sql/open db-path)
-        rows (sql/eval db query)]
+(defn exec-query [db-path query &opt vals]
+  (default vals {})
+  (with [db (sql/open db-path) 
+         (fn [db] (sql/close db))]
+    (def rows (sql/eval db query vals))
     (sql/close db)
     rows))
 
