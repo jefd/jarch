@@ -24,6 +24,21 @@
               :forks "/forks?per_page=100&page=1"
              })
 
+
+```
+(defmacro with-db [db-path db-name & body]
+  ~(with [,db-name (sql/open ,db-path) (fn [,db-name] (sql/close ,db-name))]
+     ,;body
+     (sql/close ,db-name)))
+```
+
+(defmacro with-db [db-path db-name & body]
+  ~(with [,db-name (sql/open ,db-path) (fn [,db-name] (sql/close ,db-name))]
+     (def ret (do ,;body))
+     (sql/close ,db-name)
+     ret))
+
+
 (defn ok? [r]
   (= (r :status) 200))
 
