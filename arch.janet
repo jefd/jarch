@@ -32,8 +32,7 @@
 
 (defn exec-query [db-path query &opt vals]
   (default vals {})
-  (with [db (sql/open db-path) 
-         (fn [db] (sql/close db))]
+  (with [db (sql/open db-path) (fn [db] (sql/close db))]
     (def rows (sql/eval db query vals))
     (sql/close db)
     rows))
@@ -142,18 +141,18 @@
   (multi-insert db-path table-name query lst))
 
 (defn insert-or-update-forks [db-path table-name fork-count]
+  (def insert-query (string  "insert or ignore into forks values (:fork_count);"))
+  (def update-query (string "update forks set fork_count = :fork_count;" ))
 
-  (let [db (sql/open db-path)
-        insert-query (string  "insert or ignore into forks values (:fork_count);")
-        update-query (string "update forks set fork_count = :fork_count;" )
-        rows (sql/eval db "select count(*) from forks;")
-        row (rows 0)
-        key ((keys row) 0)
-        cnt (row key)
-        query (if (= 0 cnt) insert-query update-query)]
-
+  (with [db (sql/open db-path) (fn [db] (sql/close db))]
+    (def rows (sql/eval db "select count(*) from forks;"))
+    (def row (rows 0))
+    (def key ((keys row) 0))
+    (def cnt (row key))
+    (def query (if (= 0 cnt) insert-query update-query))
     (sql/eval db query {:fork_count fork-count})
     (sql/close db)))
+
 
 (defn get-url [repo metric]
   (let [owner (repo :owner)
@@ -294,19 +293,18 @@
 
   (get-sorted-list commit-dct))
 
+
 (defn update-repo-table [repo metric]
-  (let [owner (repo :owner)
-        name (repo :name)
-        table-name (get-table-name repo metric)
-        select-query (string "select timestamp from " (qw table-name) " order by timestamp limit 1;")
-        insert-query (string "insert into repos values (:owner :name :metric :minDate);")]
+  (def owner (repo :owner))
+  (def name (repo :name))
+  (def table-name (get-table-name repo metric))
+  (def select-query (string "select timestamp from " (qw table-name) " order by timestamp limit 1;"))
+  (def insert-query (string "insert into repos values (:owner :name :metric :minDate);"))
 
-    (def db (sql/open db-path))
-
+  (with [db (sql/open db-path) (fn [db] (sql/close db))]
     (def rows (sql/eval db select-query))
     (def min-date (rows 0))
     (sql/eval db insert-query {:owner owner :name name :metric metric :midDate min-date})
-
     (sql/close db)))
 
 (defn row-exists? [repo metric]
@@ -399,7 +397,7 @@ def row_exists(con, repo, metric):
   #(insert-metrics db-path "views" lst2)
   #(insert-commits db-path "commits" lst3)
   #(insert-frequency db-path "frequency" lst4)
-  #(insert-or-update-forks db-path "forks" 5)
+  #(insert-or-update-forks db-path "forks" 200)
   #(insert-or-update-forks db-path "forks" 300)
   #(print (get-url (repos 0) :views))
   #(pp (get-headers (repos 0)))
