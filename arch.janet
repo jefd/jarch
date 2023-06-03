@@ -9,20 +9,17 @@
 (def sleep-time 5)
 (def max-tries 20)
 
-(def repos  [
-        {:owner "ufs-community" :name "ufs-weather-model" :token token }
-        {:owner "ufs-community" :name "ufs-srweather-app" :token token }
-        {:owner "ufs-community" :name "ufs-mrweather-app" :token token }
-        {:owner "ufs-community" :name "regional_workflow" :token token }
-])
+(def repos  [{:owner "ufs-community" :name "ufs-weather-model" :token token }
+             {:owner "ufs-community" :name "ufs-srweather-app" :token token }
+             {:owner "ufs-community" :name "ufs-mrweather-app" :token token }
+             {:owner "ufs-community" :name "regional_workflow" :token token }])
 
 # map of metric name to github api path
 (def metrics {:views "/traffic/views"
               :clones "/traffic/clones"
               :frequency "/stats/code_frequency"
               :commits "/commits?per_page=100&page=1"
-              :forks "/forks?per_page=100&page=1"
-             })
+              :forks "/forks?per_page=100&page=1"})
 
 
 (defmacro with-db [db-path db-name & body]
