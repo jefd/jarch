@@ -28,6 +28,25 @@
      (sql/close ,db-name)
      ret))
 
+```
+(defn kw [lst]
+  (defn kw-h [m]
+    (def tab @{})
+    (eachp [k v] m
+      (put tab (keyword k) v))
+    #(table/to-struct tab))
+    tab)
+
+  #(tuple/slice (map kw lst)))
+  (map kw-h lst))
+```
+
+(defn kw [m]
+  (def tab @{})
+  (eachp [k v] m
+    (put tab (keyword k) v))
+  tab)
+
 
 (defn ok? [r]
   (= (r :status) 200))
@@ -74,11 +93,10 @@
   (mget-helper 1))
 
 (defn get-latest [table-name]
-  (let [tbl (string `"` table-name `"`)
-        query (string "select timestamp from " tbl " order by timestamp desc limit 1;")
+  (let [query (string "select timestamp from " (qw table-name) " order by timestamp desc limit 1;")
         rows (exec-query db-path query)]
 
-    (if (>= (length rows) 0) (rows 0) nil))) 
+    (if (> (length rows) 0) (rows 0) nil))) 
 
 (defn prune-list [lst latest]
   (if (not latest)
@@ -89,7 +107,7 @@
   (let [owner (repo :owner)
         repo-name (repo :name)]
 
-    (string owner "/" repo-name "/" metric)))
+    (string owner "/" repo-name "/" (string metric))))
 
 (defn create-repo-table [db-path]
   (let [q `create table if not exists repos (
@@ -146,7 +164,8 @@
   (with-db db-path db
     (each dct lst
       (print "Inserting into " (qw table-name) ": " (json/encode dct))
-      (sql/eval db query dct))))
+      #(sql/eval db query dct))))
+      (sql/eval db query (kw dct)))))
 
 (defn insert-metrics [db-path table-name lst]
   (def query (string  "insert into " (qw table-name) " values (:timestamp, :count, :uniques);"))
@@ -318,12 +337,12 @@
   (def name (repo :name))
   (def table-name (get-table-name repo metric))
   (def select-query (string "select timestamp from " (qw table-name) " order by timestamp limit 1;"))
-  (def insert-query (string "insert into repos values (:owner :name :metric :minDate);"))
+  (def insert-query (string "insert into repos values (:owner, :name, :metric, :minDate);"))
 
   (with-db db-path db
     (def rows (sql/eval db select-query))
-    (def min-date (rows 0))
-    (sql/eval db insert-query {:owner owner :name name :metric metric :midDate min-date})))
+    (def min-date (get (rows 0) :timestamp))
+    (sql/eval db insert-query {:owner owner :name name :metric (string metric) :minDate min-date})))
 
 (defn row-exists? [repo metric]
   (let [owner (repo :owner)
@@ -332,7 +351,8 @@
         rows (exec-query db-path query)
         ]
 
-    (rows 0)))
+    (not (empty? rows))))
+
 
 ```
 def row_exists(con, repo, metric):
@@ -377,6 +397,39 @@ def row_exists(con, repo, metric):
           lst)))))
 
 (defn main [&]
+
+  (do
+    (create-repo-table db-path)
+
+    (each repo repos
+      (each metric (keys metrics)
+        (prompt :top
+          (def row-ex (row-exists? repo metric))
+
+          (cond
+            (or (= metric :views) (= metric :clones))
+            (do
+              (def table-name (get-table-name repo metric))
+              (create-metric-table db-path table-name)
+              (def l (get-metrics repo metric))
+              (if (not l) (return :top))
+
+              (def lst (array/slice l 0 -2))
+              (def latest (get-latest table-name))
+              (def pruned-list (prune-list lst latest))
+              (if (not pruned-list) (return :top)) 
+
+              (pp pruned-list)
+
+              (insert-metrics db-path table-name pruned-list) 
+
+              (if (not row-ex)
+                (update-repo-table repo metric)))))))))
+
+
+
+
+  ```
   (def tbl (get-table-name (repos 0) "views"))
   (def latest "2023-01-01")
   (def lst [
@@ -402,6 +455,7 @@ def row_exists(con, repo, metric):
               {:timestamp "2023-01-07" :additions 20 :deletions 5}
               {:timestamp "2023-03-09" :additions 23 :deletions 30}
             ])
+  ```
 
   #(pp (get-latest tbl))
   #(pp (prune-list lst latest))
@@ -415,7 +469,7 @@ def row_exists(con, repo, metric):
   #(insert-metrics db-path "views" lst2)
   #(insert-commits db-path "commits" lst3)
   #(insert-frequency db-path "frequency" lst4)
-  (insert-or-update-forks db-path "forks" 300)
+  #(insert-or-update-forks db-path "forks" 300)
   #(insert-or-update-forks db-path "forks" 300)
   #(print (get-url (repos 0) :views))
   #(pp (get-headers (repos 0)))
@@ -433,6 +487,6 @@ def row_exists(con, repo, metric):
   #(each c commits
   #  (pp c))
   
-  )
+  #)
 
 
