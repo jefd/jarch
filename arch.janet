@@ -164,8 +164,8 @@
   (with-db db-path db
     (each dct lst
       (print "Inserting into " (qw table-name) ": " (json/encode dct))
-      #(sql/eval db query dct))))
-      (sql/eval db query (kw dct)))))
+      (sql/eval db query dct))))
+      #(sql/eval db query (kw dct)))))
 
 (defn insert-metrics [db-path table-name lst]
   (def query (string  "insert into " (qw table-name) " values (:timestamp, :count, :uniques);"))
@@ -366,6 +366,19 @@ def row_exists(con, repo, metric):
     return result
 ```
 
+(defn parse-timestamp [timestamp]
+  # 2022-10-31T00:00:00Z
+  (def d (string/split "-" (string/slice timestamp 0 10)))
+  # ["2022" "10" "31"]
+  (tuple/slice (map scan-number d)))
+
+(defn today? [timestamp]
+  (def ts (parse-timestamp timestamp))
+  (def {:year year :month month :month-day day} (os/date))
+  (def today (tuple/slice [year (+ 1 month) (+ 1 day)]))
+  (= today ts))
+
+
 (defn to-double-digit-string [digit]
   (string/slice (string "0" digit) -3))
 
@@ -412,16 +425,25 @@ def row_exists(con, repo, metric):
               (def table-name (get-table-name repo metric))
               (create-metric-table db-path table-name)
               (def l (get-metrics repo metric))
+
               (if (not l) (return :top))
 
-              (def lst (array/slice l 0 -2))
+              (def ts (get (last l) "timestamp"))
+
+              (def lst (if (today? ts)
+                         (array/slice l 0 -2)
+                         l))
+
+              (if (not lst) (return :top))
+
+
+              #(def lst (array/slice l 0 -2))
+
               (def latest (get-latest table-name))
               (def pruned-list (prune-list lst latest))
               (if (not pruned-list) (return :top)) 
 
-              (pp pruned-list)
-
-              (insert-metrics db-path table-name pruned-list) 
+              (insert-metrics db-path table-name (map kw pruned-list)) 
 
               (if (not row-ex)
                 (update-repo-table repo metric)))))))))
