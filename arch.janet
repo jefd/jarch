@@ -204,7 +204,8 @@
     (def r (mget url headers))
 
     (if r 
-      (json/decode (r :body)))))
+      (json/decode (r :body))
+      [])))
 
 (defn get-clones [repo]
   (let [url (get-url repo :clones)
@@ -214,7 +215,8 @@
     (def r (mget url headers))
 
     (if r 
-      (json/decode (r :body)))))
+      (json/decode (r :body))
+      [])))
 
 (defn get-metrics [repo metric]
   (let [url (get-url repo metric)
