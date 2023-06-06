@@ -9,18 +9,21 @@
 (def sleep-time 5)
 (def max-tries 20)
 
-(def repos  [{:owner "ufs-community" :name "ufs-weather-model" :token token }
+(def repos  [
+             {:owner "ufs-community" :name "ufs-weather-model" :token token }
              {:owner "ufs-community" :name "ufs-srweather-app" :token token }
              {:owner "ufs-community" :name "ufs-mrweather-app" :token token }
-             {:owner "ufs-community" :name "regional_workflow" :token token }])
+             {:owner "ufs-community" :name "regional_workflow" :token token }
+             ])
 
 # map of metric name to github api path
-(def metrics {:views "/traffic/views"
+(def metrics {
+              :views "/traffic/views"
               :clones "/traffic/clones"
               :frequency "/stats/code_frequency"
               :commits "/commits?per_page=100&page=1"
-              :forks "/forks?per_page=100&page=1"})
-
+              :forks "/forks?per_page=100&page=1"
+             })
 
 (defmacro with-db [db-path db-name & body]
   ~(with [,db-name (sql/open ,db-path) (fn [,db-name] (sql/close ,db-name))]
@@ -28,25 +31,11 @@
      (sql/close ,db-name)
      ret))
 
-```
-(defn kw [lst]
-  (defn kw-h [m]
-    (def tab @{})
-    (eachp [k v] m
-      (put tab (keyword k) v))
-    #(table/to-struct tab))
-    tab)
-
-  #(tuple/slice (map kw lst)))
-  (map kw-h lst))
-```
-
 (defn kw [m]
   (def tab @{})
   (eachp [k v] m
     (put tab (keyword k) v))
   tab)
-
 
 (defn ok? [r]
   (= (r :status) 200))
@@ -68,7 +57,6 @@
   (with-db db-path db 
     (sql/eval db query vals)))
     
-
 (defn mget [url headers]
   
   (defn mget-helper [tries]
@@ -96,7 +84,7 @@
   (let [query (string "select timestamp from " (qw table-name) " order by timestamp desc limit 1;")
         rows (exec-query db-path query)]
 
-    (if (> (length rows) 0) (rows 0) nil))) 
+    (if (> (length rows) 0) (get (rows 0) :timestamp) nil))) 
 
 (defn prune-list [lst latest]
   (if (not latest)
@@ -206,9 +194,7 @@
     {:Accept "application/vnd.github.v3+json"
      :User-Agent "epic"
      :Authorization (string "token " token)
-    }
-
-    ))
+    }))
 
 (defn get-views [repo]
   (let [url (get-url repo :views)
@@ -239,7 +225,8 @@
     (def r (mget url headers))
 
     (if r 
-        ((json/decode (r :body)) (string metric)))))
+        ((json/decode (r :body)) (string metric))
+        [])))
 
 ```
 (defn split-strip [delim s]
@@ -266,7 +253,6 @@
       (if (string/find rel relative)
         (put m rel (string/slice url 1 -2)))))
   m)
-
 
 (defn get-fork-count [repo]
   (defn get-count [lst]
@@ -378,7 +364,6 @@ def row_exists(con, repo, metric):
   (def today (tuple/slice [year (+ 1 month) (+ 1 day)]))
   (= today ts))
 
-
 (defn to-double-digit-string [digit]
   (string/slice (string "0" digit) -3))
 
@@ -424,26 +409,26 @@ def row_exists(con, repo, metric):
             (do
               (def table-name (get-table-name repo metric))
               (create-metric-table db-path table-name)
-              (def l (get-metrics repo metric))
+              (def l (map kw (get-metrics repo metric)))
 
-              (if (not l) (return :top))
+              (if (empty? l) (return :top))
 
-              (def ts (get (last l) "timestamp"))
+              (def ts (get (last l) :timestamp))
 
               (def lst (if (today? ts)
                          (array/slice l 0 -2)
                          l))
 
-              (if (not lst) (return :top))
+              (if (empty? lst) (return :top))
 
 
               #(def lst (array/slice l 0 -2))
 
               (def latest (get-latest table-name))
               (def pruned-list (prune-list lst latest))
-              (if (not pruned-list) (return :top)) 
+              (if (empty? pruned-list) (return :top)) 
 
-              (insert-metrics db-path table-name (map kw pruned-list)) 
+              (insert-metrics db-path table-name pruned-list) 
 
               (if (not row-ex)
                 (update-repo-table repo metric)))))))))
